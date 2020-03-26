@@ -34,6 +34,11 @@ fun main() {
                 possibleConfigurations
                 .map { configuration -> configuration to message.split(*configuration.separators.toCharArray()) }
                 .first { (configuration, fields) ->
+                    // in that case end here otherwise we would get the indices would be out of bounds
+                    if (configuration.fieldCount != fields.filter { it.isNotEmpty() }.size) {
+                        return@first false
+                    }
+
                     val handleMatches = message.matches(configuration.messageHandleRegex.toRegex())
                     val idLength = if (configuration.idRegex.isNotEmpty()) {
                         getCapturedValue(fields[configuration.idIdx], configuration.idRegex) { it.length }
@@ -41,8 +46,7 @@ fun main() {
                         fields[configuration.idIdx].length
                     }
 
-                    handleMatches ||
-                    ((configuration.fieldCount == fields.filter { it.isNotEmpty() }.size) && (idLength == configuration.idLength))
+                    handleMatches || idLength == configuration.idLength
                 }
 
             if (optionalDataHandlers.isNotEmpty()) {
@@ -101,7 +105,7 @@ fun forwardEmergency(configuration: Configuration, fields: List<String>) {
 fun findConfigurationsForGateway(connection: Connection, gateway: String): List<Configuration> {
     val configurations = mutableListOf<Configuration>()
 
-    val fetchGateways = connection.prepareStatement("SELECT * FROM configuration WHERE transport = ?::\"transport\"")
+    val fetchGateways = connection.prepareStatement("SELECT * FROM configuration WHERE transport = ?::\"transport\" OR transport = '*'")
     fetchGateways.setString(1, gateway)
     fetchGateways.executeQuery().use { rs ->
         while (rs.next()) {
